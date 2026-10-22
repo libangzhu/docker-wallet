@@ -1,0 +1,203 @@
+.page-header-top {
+    background: #444d58;
+    height: 51px;
+}
+
+.menu-logo {
+    cursor:pointer;
+    float: left;
+    margin: 12px 10px 0 10px;
+    width: 90px;
+    color: #93cbfb;
+    font-size: 20px;
+}
+
+.menu-user {
+    cursor:pointer;
+    color:#ddd;
+    float: right;
+    margin: 16px 15px 0 13px;
+}
+
+.my-container {
+    padding: 10px 0 10px 0;
+}
+
+.menu-logout {
+    cursor:pointer;
+    color:#b9b9b9;
+    float: right;
+    margin: 16px 0 0 13px;
+    width: 40px;
+    height: 30px;
+}
+
+.page-header-top > .container > a:hover , .page-header-right > a:hover{
+    color: #e06c6c;
+}
+
+@media screen and (max-width:1100px){
+    .menu-logo {
+        display: none;
+    }
+}
+
+@media screen and (max-width:1010px){
+    .page-header-right {
+        display: none;
+    }
+
+}
+
+@media screen and (min-width:991px){
+    .page-header-top {
+        display: none;
+    }
+}
+
+/*****************************************/
+a.asc:after, a.desc:after {
+    position: relative;
+    top: 1px;
+    display: inline-block;
+    font-family: 'Glyphicons Halflings';
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+    padding-left: 5px;
+}
+
+a.asc:after {
+    content: /*"\e113 \e151"*/ "\e113";
+}
+
+a.desc:after {
+    content: /*"\e114 \e152"*/ "\e114";
+}
+
+.sort-numerical a.asc:after {
+    content: "\e153";
+}
+
+.sort-numerical a.desc:after {
+    content: "\e154";
+}
+
+.sort-ordinal a.asc:after {
+    content: "\e155";
+}
+
+.sort-ordinal a.desc:after {
+    content: "\e156";
+}
+
+.table>tbody>tr>td, .table>tbody>tr>th, .table>tfoot>tr>td, .table>tfoot>tr>th, .table>thead>tr>td, .table>thead>tr>th {
+    padding: 4px;
+    white-space: nowrap;
+}
+
+.form-control {
+    padding: 4px 6px;
+}
+
+.layui-form-item .layui-input-inline {
+    width: auto;
+}
+
+.my-select {
+    display: block !important;
+    width: 100%;
+    height: 34px;
+    padding: 6px 8px;
+/*     font-size: 12px;
+     line-height: 1.12857143;*/
+    color: #555;
+    background-color: #fff;
+    background-image: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.my-input {
+    display: block;
+    width: 100%;
+    height: 34px;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.42857143;
+    color: #555;
+    background-color: #fff;
+    background-image: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.my-label {
+    float: left;
+    display: block;
+    padding: 8px 8px;
+    width: auto;
+    font-weight: 400;
+    text-align: right;
+}
+
+.my-group {
+    padding-bottom: 10px;
+}
+
+body .layui-layer-myGray .layui-layer-title{background:#9E9E9E; color:#fff; border: none;}
+body .layui-layer-myGray .layui-layer-btn{border-top:1px solid #E9E7E7}
+body .layui-layer-myGray .layui-layer-btn a{background:#9E9E9E;border: 1px solid #9E9E9E}
+body .layui-layer-myGray .layui-layer-btn .layui-layer-btn1{background:#ececec;border: 1px solid #e5e5e5;color: gray}
+
+body .layui-layer-myRed .layui-layer-title{background:#e7505a; color:#fff; border: none;}
+body .layui-layer-myRed .layui-layer-btn{border-top:1px solid #E9E7E7}
+body .layui-layer-myRed .layui-layer-btn a{background:#e7505a;border: 1px solid #e7505a}
+body .layui-layer-myRed .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+body .layui-layer-myBlue .layui-layer-title{background:#4476A7; color:#fff; border: none;}
+body .layui-layer-myBlue .layui-layer-btn{border-top:1px solid #E9E7E7}
+body .layui-layer-myBlue .layui-layer-btn a{background:#4476A7;border: 1px solid #4476A7}
+body .layui-layer-myBlue .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+body .layui-layer-myGreen .layui-layer-title{background:#5FB878; color:#fff; border: none;}
+body .layui-layer-myGreen .layui-layer-btn{border-top:1px solid #E9E7E7}
+body .layui-layer-myGreen .layui-layer-btn a{background:#5FB878;border: 1px solid #E9E7E7}
+body .layui-layer-myGreen .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+/* big */
+
+body .layui-layer-myGray-big .layui-layer-title{background:#9E9E9E; color:#fff; border: none;}
+body .layui-layer-myGray-big .layui-layer-btn a{background:#9E9E9E;border: 1px solid #9E9E9E}
+body .layui-layer-myGray-big .layui-layer-btn .layui-layer-btn1{background:#ececec;border: 1px solid #e5e5e5;color: gray}
+
+body .layui-layer-myRed-big .layui-layer-title{background:#e7505a; color:#fff; border: none;}
+body .layui-layer-myRed-big .layui-layer-btn a{background:#e7505a;border: 1px solid #e7505a}
+body .layui-layer-myRed-big .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+body .layui-layer-myBlue-big .layui-layer-title{background:#4476A7; color:#fff; border: none;}
+body .layui-layer-myBlue-big .layui-layer-btn a{background:#4476A7;border: 1px solid #4476A7}
+body .layui-layer-myBlue-big .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+body .layui-layer-myGreen-big .layui-layer-title{background:#5FB878; color:#fff; border: none;}
+body .layui-layer-myGreen-big .layui-layer-btn a{background:#5FB878;border: 1px solid #E9E7E7}
+body .layui-layer-myGreen-big .layui-layer-btn .layui-layer-btn1{background:#e5e5e5;border: 1px solid #e5e5e5}
+
+body .layui-layer-myGray-big .layui-layer-btn .layui-layer-btn0,
+body .layui-layer-myGray-big .layui-layer-btn .layui-layer-btn1,
+body .layui-layer-myRed-big .layui-layer-btn .layui-layer-btn0,
+body .layui-layer-myRed-big .layui-layer-btn .layui-layer-btn1,
+body .layui-layer-myBlue-big .layui-layer-btn .layui-layer-btn0,
+body .layui-layer-myBlue-big .layui-layer-btn .layui-layer-btn1,
+body .layui-layer-myGreen-big .layui-layer-btn .layui-layer-btn0,
+body .layui-layer-myGreen-big .layui-layer-btn .layui-layer-btn1{height:36px;line-height:36px;font-size:16px;}
+
+body .layui-layer-myGray-big .layui-layer-btn a,
+body .layui-layer-myRed-big .layui-layer-btn a,
+body .layui-layer-myBlue-big .layui-layer-btn a,
+body .layui-layer-myGreen-big .layui-layer-btn a{font-size:16px;}
+
+
+.layui-laydate {
+    z-index: 66666666 !important;
+}

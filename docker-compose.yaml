@@ -1,0 +1,65 @@
+version: '3'
+services:
+  wallet-mysql:
+    image: mysql:5.7 #使用的镜像
+    restart: always
+    container_name: wallet-mysql  #容器名
+    volumes:
+      - ./mysql/data:/var/lib/mysql  #挂载目录，持久化存储
+      - ./mysql/sqlfile:/data
+      - ./mysql/etc/my.cnf:/etc/my.cnf
+    ports:
+      - "3307:3306"
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: "pu2Gfxnj"
+    networks:
+      wallet_default:
+         ipv4_address: 172.31.0.21
+
+  wallet-redis:
+    image: redis:4.0.12
+    restart: always
+    container_name: wallet-redis
+    ports:
+      - "6380:6379"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./redis/etc/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis/data:/data
+      - ./redis/log:/var/log/
+    command: redis-server /usr/local/etc/redis/redis.conf 
+    networks:
+      wallet_default:
+         ipv4_address: 172.31.0.31
+
+  wallet-ubuntu:
+    image: ubuntu:22.04  # 使用官方的
+    container_name: wallet-ubuntu  # 指定容器的名称
+    ports:
+      - "8056:8056"
+      - "8082:8082"
+      - "8983:8983"
+    volumes:
+      - ./ubuntu/wallet:/data/wallet  # 将主机的./www目录挂载到容器的/var/www/html目录
+      - ./ubuntu/conf.d:/etc/nginx/conf.d
+      - ./ubuntu/logs:/var/log/nginx   # - ./nginx/html:/usr/share/nginx/html
+    environment:
+      - TZ=Asia/Shanghai  # 设置容器的时区
+    depends_on:
+      - wallet-mysql
+      - wallet-redis
+    #command: sleep infinity
+    command: bash -c "ln -snf /usr/share/zoneinfo/$$TZ /etc/localtime && echo $$TZ > /etc/timezone && tail -f /dev/null"
+    networks:
+      wallet_default:
+         ipv4_address: 172.31.0.41
+
+networks:
+  wallet_default:
+      driver: bridge
+      ipam:
+          config:
+             - subnet: 172.31.0.0/20
+
