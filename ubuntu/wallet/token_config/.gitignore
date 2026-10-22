@@ -1,0 +1,44 @@
+# log files
+*.log
+
+# runtime files
+runtime/*
+
+# web assets
+assets/*
+backend/assets/
+
+# web run index
+#**/index.php
+#**/yii
+.idea/
+.setting/
+backend/upload/
+
+# visual studio code
+.vscode
+
+# config
+backend/config/main-local.php
+backend/config/params-local.php
+common/config/main-local.php
+common/config/params.php
+common/config/params-local.php
+console/config/main-local.php
+console/config/params-local.php
+wallet/config/main-local.php
+wallet/config/params-local.php
+api/config/main-local.php
+api/config/params-local.php
+h5/config/main-local.php
+h5/config/params-local.php
+
+# entry file
+api/index.php
+backend/index.php
+h5/index.php
+wallet/index.php
+yii
+
+# interceptor file
+common/config/interceptor.php

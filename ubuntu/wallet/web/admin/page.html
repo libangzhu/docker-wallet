@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管理后台 | {{.Title}}</title>
+    <style>
+        body { font-family: sans-serif; background: #1b1f24; color: #eee; margin: 0; }
+        .bar { background: #2a3038; padding: 12px 20px; display: flex; justify-content: space-between; }
+        .bar a { color: #9ecbff; }
+        main { padding: 24px; }
+    </style>
+</head>
+<body>
+<div class="bar">
+    <div>管理后台 | {{.Title}}</div>
+    <div><span>{{.User}}</span> <a href="/admin/login/logout">退出</a></div>
+</div>
+<main>
+    <p>{{.Body}}</p>
+    <p><a href="/admin/coin/index">币种</a> · <a href="/admin/source/notice">公告</a> · <a href="/admin/source/article">文章</a> · <a href="/admin/miner-fee/index">矿工费</a></p>
+</main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+settings:
+  legacy:
+    force: false
+    interval: 0s
+schema:
+- name: whatever
+  path: .
+  commands:
+    run:
+      status: true
+  watcher:
+    extensions:
+    - go
+    paths:
+    - /
+    scripts:
+      - type: after
+        command: ./your_binary_file_name
+        output: true
+    ignored_paths:
+    - .git
+    - .realize
+    - vendor

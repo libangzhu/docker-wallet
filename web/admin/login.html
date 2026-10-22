@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管理后台 | 登录</title>
+    <style>
+        body { font-family: sans-serif; background: #1b1f24; color: #eee; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        form { background: #2a3038; padding: 24px; border-radius: 8px; width: 320px; }
+        input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #3d8bfd; color: #fff; border: 0; }
+        .err { color: #ff8a8a; }
+    </style>
+</head>
+<body>
+<form method="post" action="/admin/login/login">
+    <h3>管理后台登录</h3>
+    {{if .Error}}<p class="err">{{.Error}}</p>{{end}}
+    <input name="username" placeholder="用户名" required>
+    <input name="password" type="password" placeholder="密码" required>
+    <button type="submit">登录</button>
+</form>
+</body>
+</html>

@@ -1,0 +1,45 @@
+http:
+  addr: "127.0.0.1:8090"
+  read_timeout: 60s
+  write_timeout: 60s
+
+websocket:
+  addr: "0.0.0.0:8080"
+
+jwt:
+  key: bwallet
+  iss: https://www.export.com
+  aud: https://www.export.com
+  expire_hours: 2
+
+des:
+  key: "008f80e79e6b8c6a500e54e216e38ac2"
+  iv: "33878402"
+
+uploader:
+  base_uri: https://b.export.com/admin/upload
+  absolute: /data/wallet/token_config/backend/upload
+
+mysql:
+  manage:
+    dsn: "root:pu2Gfxnj@tcp(172.31.0.21:3306)/p_manage?charset=utf8&parseTime=true&loc=Asia%2FShanghai"
+    prefix: gli_
+  coin:
+    dsn: "root:pu2Gfxnj@tcp(172.31.0.21:3306)/p_coin?charset=utf8&parseTime=true&loc=Asia%2FShanghai"
+  sources:
+    dsn: "root:pu2Gfxnj@tcp(172.31.0.21:3306)/p_sources?charset=utf8&parseTime=true&loc=Asia%2FShanghai"
+
+redis:
+  addr: "172.31.0.31:6379"
+  password: "2025two13"
+  db_cache: 1
+  db_default: 2
+  db_queue: 3
+  db_app: 4
+  db_ticker: 5
+  db_currency: 6
+  db_es: 7
+  queue_channel: queue_guodun
+
+log:
+  dir: runtime/logs

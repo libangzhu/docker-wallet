@@ -1,0 +1,49 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: rlgyzhcn
+ * Date: 18-5-31
+ * Time: 上午10:26
+ */
+
+$params = array_merge(
+    require __DIR__ . '/../../common/config/params.php',
+    require __DIR__ . '/../../common/config/params-local.php',
+    require __DIR__ . '/params.php',
+    require __DIR__ . '/params-local.php'
+);
+
+return [
+    'id'                  => 'app-h5',
+    'basePath'            => '@h5',
+    'controllerNamespace' => 'h5\controllers',
+    'defaultRoute'        => 'site/index',
+    'layout'              => false,
+    'components'          => [
+        'request'      => [
+            'baseUrl'              => '/h5',
+            'cookieValidationKey'  => '123456',
+            'enableCsrfValidation' => false,
+            'parsers'              => [
+                'application/json' => [
+                    'class'          => 'yii\web\JsonParser',
+                    'throwException' => false,//json格式错误不报错
+                ],
+            ],
+        ],
+        'response'     => [
+            'class'   => 'api\base\BaseResponse',
+            'format'  => 'json',
+            'charset' => 'UTF-8',
+        ],
+        'errorHandler' => [
+            'errorAction' => 'site/error',
+        ],
+        'urlManager'   => [
+            'enablePrettyUrl' => true,
+            'showScriptName'  => false,
+        ],
+
+    ],
+    'params'              => $params,
+];

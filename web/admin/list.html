@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管理后台 | {{.Title}}</title>
+    <style>
+        body { font-family: sans-serif; background: #1b1f24; color: #eee; margin: 0; }
+        .bar { background: #2a3038; padding: 12px 20px; display: flex; justify-content: space-between; }
+        .bar a { color: #9ecbff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { border-bottom: 1px solid #444; padding: 8px; text-align: left; }
+        img { height: 24px; }
+    </style>
+</head>
+<body>
+<div class="bar">
+    <div>管理后台 | {{.Title}}</div>
+    <div><span>{{.User}}</span> <a href="/admin/login/logout">退出</a></div>
+</div>
+<main style="padding:24px">
+    <table>
+        <tr>{{range .Headers}}<th>{{.}}</th>{{end}}</tr>
+        {{range .Rows}}
+        <tr>
+            <td>{{.ID}}</td>
+            <td>{{.Name}}</td>
+            <td>{{if .Icon}}<img src="{{.Icon}}" alt="">{{end}}</td>
+            <td>{{.Platform}}</td>
+            <td>{{.Chain}}</td>
+        </tr>
+        {{end}}
+    </table>
+</main>
+</body>
+</html>
