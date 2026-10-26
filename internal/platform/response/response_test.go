@@ -44,6 +44,22 @@ func TestWriteAPIStringCode(t *testing.T) {
 	}
 }
 
+func TestWriteAPIWrapsObject(t *testing.T) {
+	w, c := recorder()
+	WriteAPI(c, gin.H{"id": 89, "name": "BTC"})
+	var got map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["code"].(float64) != 0 || got["count"].(float64) != 2 {
+		t.Fatalf("unexpected %+v", got)
+	}
+	data, ok := got["data"].(map[string]any)
+	if !ok || data["name"] != "BTC" {
+		t.Fatalf("unexpected %+v", got)
+	}
+}
+
 func TestWriteH5DefaultMsg(t *testing.T) {
 	w, c := recorder()
 	WriteH5(c, 1, "", nil)

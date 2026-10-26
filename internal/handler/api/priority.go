@@ -263,21 +263,18 @@ func (h *Handler) NoticeList(c *gin.Context) {
 	typ := req.Param(c, "type", "")
 	page := req.ParamInt(c, "page", 1)
 	size := req.ParamInt(c, "size", 10)
-	if typ != "" && typ == "0" {
-		size = 1
-	}
 	if page < 1 {
 		page = 1
 	}
 	where := "status=1 AND platform_id=?"
 	args := []any{platformID}
-	if typ != "" {
+	if typ != "" && typ != "0" {
 		where += " AND type=?"
 		args = append(args, typ)
 	}
 	var total int
-	_ = h.DB.Coin.QueryRowContext(c.Request.Context(), `SELECT COUNT(*) FROM (SELECT id FROM notice WHERE `+where+` GROUP BY title) t`, args...).Scan(&total)
-	q := `SELECT id,title,content,author,type,is_top,create_time,update_time FROM notice WHERE ` + where + ` GROUP BY title ORDER BY create_time DESC LIMIT ? OFFSET ?`
+	_ = h.DB.Coin.QueryRowContext(c.Request.Context(), `SELECT COUNT(*) FROM (SELECT title FROM notice WHERE `+where+` GROUP BY title) t`, args...).Scan(&total)
+	q := `SELECT ANY_VALUE(id),title,ANY_VALUE(content),ANY_VALUE(author),ANY_VALUE(type),ANY_VALUE(is_top),ANY_VALUE(create_time),ANY_VALUE(update_time) FROM notice WHERE ` + where + ` GROUP BY title ORDER BY MAX(create_time) DESC LIMIT ? OFFSET ?`
 	args = append(args, size, (page-1)*size)
 	rows, err := h.DB.Coin.QueryContext(c.Request.Context(), q, args...)
 	if err != nil {
@@ -399,7 +396,7 @@ func (h *Handler) RecommendIndex(c *gin.Context) {
 			"items": h.recommendItems(c, id, false),
 		})
 	}
-	if chains := h.supportedChainItems(c, platformID); len(chains) > 0 {
+	if chains := h.recommendChainItems(c, platformID); len(chains) > 0 {
 		list = append([]map[string]any{{"name": "主链", "items": chains}}, list...)
 	}
 	response.WriteAPI(c, gin.H{"code": 0, "data": list, "msg": "success"})
@@ -434,13 +431,24 @@ func (h *Handler) RecommendTrusteeship(c *gin.Context) {
 		if err != nil {
 			continue
 		}
+		if platformID == "2" {
+			item["low"], item["high"], item["last"], item["rmb"], item["usd"] = 0, 0, 0, 0, 0
+			item["chain_quotation"] = nil
+			item["chain_rmb"] = 0
+			item["chain_usd"] = 0
+		}
+		item["type"] = 2
+		item["platform_id"] = platformID
+		item["sort"] = 1
+		item["recommend"] = 1
+		item["coin"] = item["name"]
 		list = append(list, item)
 	}
 	if len(list) == 0 {
-		response.WriteAPI(c, gin.H{"code": 1, "msg": "数据为空", "data": nil})
+		response.WriteAPI(c, gin.H{"code": 1, "msg": "数据为空", "data": nil, "count": 0})
 		return
 	}
-	response.WriteAPI(c, gin.H{"code": 0, "data": list, "msg": "success"})
+	response.WriteAPI(c, gin.H{"code": 0, "data": list, "msg": "success", "count": len(list)})
 }
 
 func (h *Handler) SupportedChainIndex(c *gin.Context) {
@@ -455,6 +463,43 @@ func (h *Handler) SupportedChainIndex(c *gin.Context) {
 		return
 	}
 	response.WriteAPI(c, gin.H{"code": 0, "msg": "success", "data": items})
+}
+
+func (h *Handler) recommendChainItems(c *gin.Context, platformID string) []map[string]any {
+	rows, err := h.DB.Sources.QueryContext(c.Request.Context(),
+		`SELECT c.id,c.icon,c.name,c.platform,c.chain,c.treaty,c.nickname,c.introduce FROM coin_supported_chain s LEFT JOIN coin c ON c.id=s.coin_id WHERE s.platform_id=?`,
+		platformID)
+	if err != nil {
+		log.Error.Printf("recommend chain query failed platform_id=%s err=%v", platformID, err)
+		return nil
+	}
+	defer rows.Close()
+	locale := req.Lang(c)
+	list := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, treaty sql.NullInt64
+		var icon, name, platform, chain, nickname, introduce sql.NullString
+		if err := rows.Scan(&id, &icon, &name, &platform, &chain, &treaty, &nickname, &introduce); err != nil {
+			continue
+		}
+		item := map[string]any{
+			"id": "", "icon": "", "name": "", "platform": "", "chain": "", "treaty": "", "nickname": "", "introduce": "",
+		}
+		if id.Valid {
+			item["id"] = id.Int64
+		}
+		item["icon"] = nullString(icon)
+		item["name"] = nullString(name)
+		item["platform"] = nullString(platform)
+		item["chain"] = nullString(chain)
+		if treaty.Valid {
+			item["treaty"] = treaty.Int64
+		}
+		item["nickname"] = lang.PickString(nullString(nickname), locale)
+		item["introduce"] = lang.PickString(nullString(introduce), locale)
+		list = append(list, item)
+	}
+	return list
 }
 
 func (h *Handler) supportedChainItems(c *gin.Context, platformID string) []map[string]any {

@@ -3,7 +3,11 @@ package api
 import (
 	"database/sql"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 
@@ -60,13 +64,20 @@ func (h *Handler) Search(c *gin.Context) {
 		where = append(where, "chain=?")
 		args = append(args, chain)
 	}
-	if keyword != "" {
-		where = append(where, "(name LIKE ? OR optional_name LIKE ?)")
+	if keyword != "" && keyword != "0" {
+		where = append(where, "(address LIKE ? OR name LIKE ?)")
 		like := "%" + keyword + "%"
 		args = append(args, like, like)
 	}
+	whereSQL := strings.Join(where, " AND ")
+	var total int
+	if err := h.DB.Sources.QueryRowContext(c.Request.Context(), `SELECT COUNT(*) FROM coin WHERE `+whereSQL, args...).Scan(&total); err != nil {
+		log.Error.Printf("coin search count failed platform_id=%s err=%v", platformID, err)
+		response.WriteAPI(c, gin.H{"code": -1, "data": nil})
+		return
+	}
 	sqlStr := `SELECT id,sid,icon,name,optional_name,nickname,platform,chain,address AS contract_address,treaty FROM coin WHERE ` +
-		strings.Join(where, " AND ") + ` ORDER BY id LIMIT ? OFFSET ?`
+		whereSQL + ` ORDER BY id LIMIT ? OFFSET ?`
 	args = append(args, limit, (page-1)*limit)
 	rows, err := h.DB.Sources.QueryContext(c.Request.Context(), sqlStr, args...)
 	if err != nil {
@@ -84,7 +95,7 @@ func (h *Handler) Search(c *gin.Context) {
 			log.Error.Printf("coin search scan failed err=%v", err)
 			continue
 		}
-		list = append(list, map[string]any{
+		item := map[string]any{
 			"id":               id,
 			"sid":              nullString(sid),
 			"icon":             nullString(icon),
@@ -95,26 +106,57 @@ func (h *Handler) Search(c *gin.Context) {
 			"chain":            nullString(ch),
 			"contract_address": nullString(contract),
 			"treaty":           treaty,
-		})
+		}
+		attachChainQuote(c, h, item, nullString(ch))
+		list = append(list, item)
 	}
-	response.WriteAPI(c, gin.H{"code": 0, "data": list})
+	response.WriteAPI(c, gin.H{"code": 0, "data": list, "count": total})
 }
 
 func (h *Handler) SearchCoinByName(c *gin.Context) {
 	name := req.Param(c, "name", "")
-	if name == "" {
-		response.WriteAPI(c, gin.H{"code": -1, "msg": "参数错误", "data": nil})
+	page := req.ParamInt(c, "page", 1)
+	limit := req.ParamInt(c, "limit", 10)
+	platformID := req.Param(c, "platform_id", "")
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	where := []string{"chain IN ('ETH','DCR','BTC','BTY')"}
+	var args []any
+	if name != "" {
+		like := "%" + name + "%"
+		where = append(where, "(address=? OR name LIKE ? OR nickname LIKE ?)")
+		args = append(args, name, like, like)
+	}
+	if platformID != "" {
+		where = append(where, "JSON_CONTAINS(platform_id, ?)")
+		args = append(args, platformID)
+	}
+	whereSQL := strings.Join(where, " AND ")
+	var total int
+	if err := h.DB.Sources.QueryRowContext(c.Request.Context(), `SELECT COUNT(*) FROM coin WHERE `+whereSQL, args...).Scan(&total); err != nil {
+		log.Error.Printf("search-coin-by-name count failed name=%s err=%v", name, err)
+		response.WriteAPI(c, gin.H{"code": 0, "count": 0, "data": []any{}})
 		return
 	}
-	locale := req.Lang(c)
-	rows, err := h.DB.Sources.QueryContext(c.Request.Context(),
-		`SELECT id,sid,icon,name,optional_name,nickname,platform,chain,address AS contract_address,treaty FROM coin WHERE name=?`, name)
+	if total == 0 {
+		response.WriteAPI(c, gin.H{"code": 0, "count": 0, "data": []any{}})
+		return
+	}
+	q := `SELECT id,sid,icon,name,optional_name,nickname,platform,chain,address AS contract_address,treaty FROM coin WHERE ` +
+		whereSQL + ` ORDER BY id LIMIT ? OFFSET ?`
+	args = append(args, limit, (page-1)*limit)
+	rows, err := h.DB.Sources.QueryContext(c.Request.Context(), q, args...)
 	if err != nil {
 		log.Error.Printf("search-coin-by-name failed name=%s err=%v", name, err)
-		response.WriteAPI(c, gin.H{"code": -1, "msg": "查询失败", "data": nil})
+		response.WriteAPI(c, gin.H{"code": 0, "count": 0, "data": []any{}})
 		return
 	}
 	defer rows.Close()
+	locale := req.Lang(c)
 	list := make([]map[string]any, 0)
 	for rows.Next() {
 		var id, treaty int
@@ -122,9 +164,9 @@ func (h *Handler) SearchCoinByName(c *gin.Context) {
 		if err := rows.Scan(&id, &sid, &icon, &n, &optional, &nickname, &platform, &ch, &contract, &treaty); err != nil {
 			continue
 		}
-		list = append(list, map[string]any{
+		item := map[string]any{
 			"id":               id,
-			"sid":              nullString(sid),
+			"sid":              ucfirst(nullString(sid)),
 			"icon":             nullString(icon),
 			"name":             nullString(n),
 			"optional_name":    nullString(optional),
@@ -133,9 +175,12 @@ func (h *Handler) SearchCoinByName(c *gin.Context) {
 			"chain":            nullString(ch),
 			"contract_address": nullString(contract),
 			"treaty":           treaty,
-		})
+			"platform_icon":    h.platformIcon(c, nullString(platform)),
+		}
+		attachChainQuote(c, h, item, nullString(ch))
+		list = append(list, item)
 	}
-	response.WriteAPI(c, gin.H{"code": 0, "data": list})
+	response.WriteAPI(c, gin.H{"code": 0, "count": total, "data": list})
 }
 
 func (h *Handler) CoinIndex(c *gin.Context) {
@@ -150,6 +195,7 @@ func (h *Handler) CoinIndex(c *gin.Context) {
 		return
 	}
 	locale := req.Lang(c)
+	hasCurrency, factor := h.countryFactor(c)
 	list := make([]map[string]any, 0)
 	for _, raw := range names {
 		var name, platform string
@@ -166,49 +212,49 @@ func (h *Handler) CoinIndex(c *gin.Context) {
 		var q string
 		var args []any
 		if platform != "" {
-			q = `SELECT id,sid,icon,name,nickname,introduce,platform,chain,treaty FROM coin WHERE name=? AND (platform=? OR chain=?) LIMIT 1`
-			args = []any{name, platform, platform}
+			q = `SELECT id,sid,icon,name,optional_name,nickname,introduce,platform,chain,address,treaty FROM coin WHERE name=? AND platform=? LIMIT 1`
+			args = []any{name, platform}
 		} else {
-			q = `SELECT id,sid,icon,name,nickname,introduce,platform,chain,treaty FROM coin WHERE name=? LIMIT 1`
+			q = `SELECT id,sid,icon,name,optional_name,nickname,introduce,platform,chain,address,treaty FROM coin WHERE name=? LIMIT 1`
 			args = []any{name}
 		}
 		var id, treaty int
-		var sid, icon, n, nickname, introduce, plat, chain sql.NullString
-		err := h.DB.Sources.QueryRowContext(c.Request.Context(), q, args...).Scan(&id, &sid, &icon, &n, &nickname, &introduce, &plat, &chain, &treaty)
+		var sid, icon, n, optional, nickname, introduce, plat, chain, address sql.NullString
+		err := h.DB.Sources.QueryRowContext(c.Request.Context(), q, args...).Scan(&id, &sid, &icon, &n, &optional, &nickname, &introduce, &plat, &chain, &address, &treaty)
 		if err != nil {
 			continue
 		}
 		ticker := quotation(c.Request.Context(), h.RDB, nullString(n))
-		chainQ := quotation(c.Request.Context(), h.RDB, nullString(chain))
 		item := map[string]any{
-			"id":              id,
-			"sid":             nullString(sid),
-			"icon":            nullString(icon),
-			"name":            nullString(n),
-			"nickname":        lang.PickString(nullString(nickname), locale),
-			"introduce":       lang.PickString(nullString(introduce), locale),
-			"platform":        nullString(plat),
-			"chain":           nullString(chain),
-			"treaty":          treaty,
-			"chain_quotation": chainQ,
+			"id":               id,
+			"sid":              ucfirst(nullString(sid)),
+			"icon":             nullString(icon),
+			"name":             nullString(n),
+			"optional_name":    nullString(optional),
+			"nickname":         lang.PickString(nullString(nickname), locale),
+			"introduce":        lang.PickString(nullString(introduce), locale),
+			"platform":         nullString(plat),
+			"chain":            nullString(chain),
+			"contract_address": nullString(address),
+			"treaty":           treaty,
 		}
-		if ticker != nil {
-			item["low"] = ticker["low"]
-			item["high"] = ticker["high"]
-			item["last"] = ticker["last"]
-			item["rmb"] = ticker["rmb"]
-			item["usd"] = ticker["usd"]
-		}
-		if chainQ != nil {
-			item["chain_rmb"] = chainQ["rmb"]
-			item["chain_usd"] = chainQ["usd"]
+		fillQuote(item, ticker, strings.EqualFold(nullString(plat), "GUODUN"))
+		attachChainQuote(c, h, item, nullString(chain))
+		rmb := numberOf(item["rmb"])
+		chainRMB := numberOf(item["chain_rmb"])
+		item["chain_country_rate"] = round4(factor * chainRMB)
+		if hasCurrency {
+			item["country_rate"] = round4(factor * rmb)
 		} else {
-			item["chain_rmb"] = 0
-			item["chain_usd"] = 0
+			item["country_rate"] = rmb
 		}
 		list = append(list, item)
 	}
-	response.WriteAPI(c, gin.H{"code": 0, "data": list})
+	if len(list) == 0 {
+		response.WriteAPI(c, gin.H{"code": 0, "data": []any{}})
+		return
+	}
+	response.WriteAPI(c, gin.H{"code": 0, "count": len(list), "data": list})
 }
 
 func (h *Handler) GetMinerFeeByName(c *gin.Context) {
@@ -383,7 +429,8 @@ func scanCoinRow(row *sql.Row) (map[string]any, error) {
 	var id, exchange, decimals, treaty, isNFT int
 	var sid, name, optional, nickname, icon, introduce, official, paper, platform, chain, area, address, platformID sql.NullString
 	var release sql.NullTime
-	var price, publish, circulate sql.NullString
+	var price sql.NullString
+	var publish, circulate sql.NullFloat64
 	if err := row.Scan(&id, &sid, &name, &optional, &nickname, &icon, &introduce, &official, &paper, &exchange, &platform, &chain, &release, &price, &area, &publish, &circulate, &decimals, &address, &platformID, &treaty, &isNFT); err != nil {
 		return nil, err
 	}
@@ -392,7 +439,7 @@ func scanCoinRow(row *sql.Row) (map[string]any, error) {
 		"nickname": []byte(nullString(nickname)), "icon": nullString(icon), "introduce": []byte(nullString(introduce)),
 		"official": nullString(official), "paper": nullString(paper), "exchange": exchange,
 		"platform": nullString(platform), "chain": nullString(chain), "area_search": nullString(area),
-		"publish_count": nullString(publish), "circulate_count": nullString(circulate), "decimals": decimals,
+		"publish_count": plainFloat(publish), "circulate_count": plainFloat(circulate), "decimals": decimals,
 		"address": nullString(address), "platform_id": scanJSONMap([]byte(nullString(platformID))),
 		"treaty": treaty, "is_nft": isNFT, "price": nullString(price),
 	}
@@ -416,17 +463,147 @@ func asBytes(v any) []byte {
 }
 
 func format6(s string) string {
-	f, err := strconvParse(s)
+	return numberFormat(s, 6)
+}
+
+func numberFormat(s string, decimals int) string {
+	f, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
 	if err != nil {
 		return s
 	}
-	return fmt.Sprintf("%.6f", f)
+	neg := f < 0
+	if neg {
+		f = -f
+	}
+	raw := strconv.FormatFloat(f, 'f', decimals, 64)
+	parts := strings.SplitN(raw, ".", 2)
+	intPart := parts[0]
+	var b strings.Builder
+	for i := range intPart {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte(intPart[i])
+	}
+	out := b.String()
+	if len(parts) == 2 {
+		out += "." + parts[1]
+	}
+	if neg {
+		return "-" + out
+	}
+	return out
 }
 
-func strconvParse(s string) (float64, error) {
-	var f float64
-	_, err := fmt.Sscanf(s, "%f", &f)
-	return f, err
+func plainFloat(n sql.NullFloat64) string {
+	if !n.Valid {
+		return "0"
+	}
+	if n.Float64 == math.Trunc(n.Float64) && !math.IsInf(n.Float64, 0) {
+		return strconv.FormatFloat(n.Float64, 'f', 0, 64)
+	}
+	return strconv.FormatFloat(n.Float64, 'f', -1, 64)
+}
+
+func ucfirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[size:]
+}
+
+func fillQuote(item map[string]any, ticker map[string]any, zero bool) {
+	if zero || ticker == nil {
+		item["rmb"] = 0
+		item["last"] = 0
+		item["low"] = 0
+		item["high"] = 0
+		item["usd"] = 0
+		return
+	}
+	item["low"] = ticker["low"]
+	item["high"] = ticker["high"]
+	item["last"] = ticker["last"]
+	item["rmb"] = ticker["rmb"]
+	if v, ok := ticker["usd"]; ok {
+		item["usd"] = v
+	} else {
+		item["usd"] = 0
+	}
+}
+
+func attachChainQuote(c *gin.Context, h *Handler, item map[string]any, chain string) {
+	q := quotation(c.Request.Context(), h.RDB, chain)
+	if q == nil {
+		item["chain_quotation"] = nil
+		item["chain_rmb"] = 0
+		item["chain_usd"] = 0
+		return
+	}
+	item["chain_quotation"] = q
+	if v, ok := q["rmb"]; ok {
+		item["chain_rmb"] = v
+	} else {
+		item["chain_rmb"] = 0
+	}
+	if v, ok := q["usd"]; ok {
+		item["chain_usd"] = v
+	} else {
+		item["chain_usd"] = 0
+	}
+}
+
+func numberOf(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case string:
+		f, _ := strconv.ParseFloat(t, 64)
+		return f
+	default:
+		return 0
+	}
+}
+
+func round4(v float64) float64 {
+	f, _ := strconv.ParseFloat(strconv.FormatFloat(v, 'f', 4, 64), 64)
+	return f
+}
+
+func (h *Handler) countryFactor(c *gin.Context) (bool, float64) {
+	id := req.CurrencyID(c)
+	if id == "" {
+		return false, 1
+	}
+	var symbol sql.NullString
+	err := h.DB.Sources.QueryRowContext(c.Request.Context(), `SELECT symbol FROM coin_currency WHERE pj_id=? LIMIT 1`, id).Scan(&symbol)
+	if err != nil || !symbol.Valid || symbol.String == "" {
+		return false, 1
+	}
+	factor := 1.0
+	if h.RDB != nil && h.RDB.Currency != nil {
+		v, err := h.RDB.Currency.HGet(c.Request.Context(), "quotation_currency_CNY_"+symbol.String, "last").Result()
+		if err == nil {
+			if f, e := strconv.ParseFloat(v, 64); e == nil {
+				factor = f
+			}
+		}
+	}
+	return true, factor
+}
+
+func (h *Handler) platformIcon(c *gin.Context, platform string) string {
+	if h.RDB == nil || h.RDB.Default == nil || platform == "" {
+		return ""
+	}
+	v, err := h.RDB.Default.HGet(c.Request.Context(), "platform_image_info", strings.ToUpper(platform)).Result()
+	if err != nil {
+		return ""
+	}
+	return v
 }
 
 func anySlice(v any) []string {

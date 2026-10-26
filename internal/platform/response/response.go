@@ -55,6 +55,12 @@ func writeWithWrap(c *gin.Context, data any, wrapEmpty bool) {
 			writeJSON(c, env)
 			return
 		}
+		if isEmpty(data) {
+			writeJSON(c, Envelope{"code": 1, "msg": "数据为空"})
+			return
+		}
+		writeJSON(c, Envelope{"code": 0, "count": len(env), "data": data})
+		return
 	}
 	if isEmpty(data) {
 		writeJSON(c, Envelope{"code": 1, "msg": "数据为空"})

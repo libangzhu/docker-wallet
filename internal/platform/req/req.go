@@ -3,6 +3,7 @@ package req
 import (
 	"encoding/json"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -122,7 +123,13 @@ func ParamStringSlice(c *gin.Context, key string) []string {
 	if values := c.PostFormArray(key); len(values) > 0 {
 		return values
 	}
+	if values := indexedForm(c, key); len(values) > 0 {
+		return values
+	}
 	if values := c.QueryArray(key); len(values) > 0 {
+		return values
+	}
+	if values := indexedQuery(c, key); len(values) > 0 {
 		return values
 	}
 	if body := jsonBody(c); body != nil {
@@ -131,6 +138,50 @@ func ParamStringSlice(c *gin.Context, key string) []string {
 		}
 	}
 	return nil
+}
+
+func indexedForm(c *gin.Context, key string) []string {
+	_ = c.Request.ParseForm()
+	return indexedValues(c.Request.PostForm, key)
+}
+
+func indexedQuery(c *gin.Context, key string) []string {
+	return indexedValues(c.Request.URL.Query(), key)
+}
+
+func indexedValues(values map[string][]string, key string) []string {
+	type pair struct {
+		i int
+		v string
+	}
+	prefix := key + "["
+	var pairs []pair
+	for k, vs := range values {
+		if !strings.HasPrefix(k, prefix) || !strings.HasSuffix(k, "]") {
+			continue
+		}
+		inner := k[len(prefix) : len(k)-1]
+		n := len(pairs)
+		if inner != "" {
+			parsed, err := strconv.Atoi(inner)
+			if err != nil {
+				continue
+			}
+			n = parsed
+		}
+		for _, v := range vs {
+			pairs = append(pairs, pair{i: n, v: v})
+			if inner == "" {
+				n++
+			}
+		}
+	}
+	sort.SliceStable(pairs, func(a, b int) bool { return pairs[a].i < pairs[b].i })
+	out := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		out = append(out, p.v)
+	}
+	return out
 }
 
 func jsonBody(c *gin.Context) map[string]any {

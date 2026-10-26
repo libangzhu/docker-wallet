@@ -3,6 +3,8 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"math/rand"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -461,52 +463,213 @@ func (h *Handler) tickerFromCache(c *gin.Context, exchange string, page int) map
 	return gin.H{"ticker": data, "page": page}
 }
 
+const ossPrefix = "https://service.export.net/upload"
+
 func (h *Handler) appRecommend(c *gin.Context, platformID int, locale string) []map[string]any {
 	rows, err := h.DB.Sources.QueryContext(c.Request.Context(),
-		`SELECT id,name FROM coin_applicate_recommend WHERE platform_id=? OR ? = 0`, platformID, platformID)
+		`SELECT relate_id,name,type,icon FROM coin_applicate_recommend WHERE platform_id=? ORDER BY sort`, platformID)
 	if err != nil {
+		log.Error.Printf("application recommend failed platform_id=%d err=%v", platformID, err)
 		return []map[string]any{}
 	}
 	defer rows.Close()
-	return scanNamed(rows, locale)
+	disabledCate := h.idSet(c, `SELECT id FROM coin_application_category WHERE enable<>1 AND platform_id=?`, platformID)
+	disabledApp := h.idSet(c, `SELECT id FROM coin_application WHERE enable<>1 AND platform_id=?`, platformID)
+	list := make([]map[string]any, 0)
+	for rows.Next() {
+		var relateID, typ, icon int
+		var name []byte
+		if err := rows.Scan(&relateID, &name, &typ, &icon); err != nil {
+			continue
+		}
+		if typ == 1 && disabledCate[relateID] {
+			continue
+		}
+		if typ == 2 && disabledApp[relateID] {
+			continue
+		}
+		list = append(list, map[string]any{
+			"app_cate_id": relateID,
+			"name":        lang.Pick(name, locale),
+			"type":        typ,
+			"icon":        h.imageURL(c, icon),
+		})
+	}
+	return list
 }
 
 func (h *Handler) appCategories(c *gin.Context, platformID int, locale string) []map[string]any {
-	q := `SELECT id,name FROM coin_application_category`
+	q := `SELECT id,name,icon,banner,banner_url FROM coin_application_category WHERE enable=1`
 	var args []any
 	if platformID > 0 {
-		q += ` WHERE platform_id=?`
+		q += ` AND platform_id=?`
 		args = append(args, platformID)
 	}
 	q += ` ORDER BY sort`
 	rows, err := h.DB.Sources.QueryContext(c.Request.Context(), q, args...)
 	if err != nil {
+		log.Error.Printf("application categories failed platform_id=%d err=%v", platformID, err)
 		return []map[string]any{}
 	}
 	defer rows.Close()
-	list := scanNamed(rows, locale)
-	for i := range list {
-		list[i]["apps"] = []any{}
+	apps := h.cateApps(c, platformID, locale)
+	limit := 5
+	if platformID == 26 {
+		limit = 15
+	}
+	list := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, icon, banner int
+		var name []byte
+		var bannerURL sql.NullString
+		if err := rows.Scan(&id, &name, &icon, &banner, &bannerURL); err != nil {
+			continue
+		}
+		group := apps[id]
+		if group == nil {
+			group = []map[string]any{}
+		}
+		if len(group) > limit {
+			group = group[:limit]
+		}
+		list = append(list, map[string]any{
+			"id":               id,
+			"name":             lang.Pick(name, locale),
+			"icon_url":         h.imageURL(c, icon),
+			"banner_image_url": h.imageURL(c, banner),
+			"banner_url":       nullString(bannerURL),
+			"apps":             group,
+		})
 	}
 	return list
 }
 
+func (h *Handler) cateApps(c *gin.Context, platformID int, locale string) map[int][]map[string]any {
+	q := `SELECT c.cate_id,c.app_id,a.name,a.icon,a.type,a.native_url,a.native_login_url,a.h5_url,a.android_url,a.ios_url,a.app_store_url,a.advertise,a.redirect_type,a.open_type_app,a.platform_type,c.sort
+		FROM coin_app_cate c JOIN coin_application a ON a.id=c.app_id WHERE a.enable=1`
+	var args []any
+	if platformID > 0 {
+		q += ` AND a.platform_id=?`
+		args = append(args, platformID)
+	}
+	q += ` ORDER BY c.sort`
+	rows, err := h.DB.Sources.QueryContext(c.Request.Context(), q, args...)
+	if err != nil {
+		log.Error.Printf("application cate apps failed platform_id=%d err=%v", platformID, err)
+		return map[int][]map[string]any{}
+	}
+	defer rows.Close()
+	out := map[int][]map[string]any{}
+	for rows.Next() {
+		var cateID, appID, icon, typ, redirect, openType, platformType, sort int
+		var name []byte
+		var native, nativeLogin, h5url, android, ios, store, ad sql.NullString
+		if err := rows.Scan(&cateID, &appID, &name, &icon, &typ, &native, &nativeLogin, &h5url, &android, &ios, &store, &ad, &redirect, &openType, &platformType, &sort); err != nil {
+			continue
+		}
+		out[cateID] = append(out[cateID], map[string]any{
+			"cate_id": cateID, "app_id": appID, "name": lang.Pick(name, locale), "icon": h.imageURL(c, icon),
+			"type": typ, "native_url": nullString(native), "native_login_url": nullString(nativeLogin),
+			"h5_url": nullString(h5url), "android_url": nullString(android), "ios_url": nullString(ios),
+			"app_store_url": nullString(store), "advertise": nullString(ad), "redirect_type": redirect,
+			"open_type_app": openType, "platform_type": platformType, "sort": sort,
+			"app_user_num": h.appUserNum(c, appID),
+		})
+	}
+	return out
+}
+
 func (h *Handler) appBanners(c *gin.Context, platformID int) []map[string]any {
 	rows, err := h.DB.Sources.QueryContext(c.Request.Context(),
-		`SELECT banner_url,image_url,title FROM coin_banner_item WHERE platform_id=? AND status=1`, platformID)
+		`SELECT id,banner_url,image_url,title,platform_id,sort,status,type FROM coin_banner_item WHERE platform_id=?`, platformID)
 	if err != nil {
+		log.Error.Printf("application banner failed platform_id=%d err=%v", platformID, err)
 		return []map[string]any{}
 	}
 	defer rows.Close()
+	platform := h.platformBrief(c, platformID)
 	list := make([]map[string]any, 0)
 	for rows.Next() {
-		var b, i, t sql.NullString
-		if err := rows.Scan(&b, &i, &t); err != nil {
+		var id, pid, sort, status, typ int
+		var banner, image, title sql.NullString
+		if err := rows.Scan(&id, &banner, &image, &title, &pid, &sort, &status, &typ); err != nil {
 			continue
 		}
-		list = append(list, map[string]any{"banner_url": nullString(b), "image_url": nullString(i), "title": nullString(t)})
+		list = append(list, map[string]any{
+			"id": id, "banner_url": nullString(banner), "image_url": nullString(image), "title": nullString(title),
+			"platform_id": pid, "sort": sort, "status": status, "type": typ, "platform": platform,
+		})
 	}
 	return list
+}
+
+func (h *Handler) imageURL(c *gin.Context, id int) string {
+	if id == 0 {
+		return ""
+	}
+	var file sql.NullString
+	err := h.DB.Sources.QueryRowContext(c.Request.Context(), `SELECT file_url FROM coin_image WHERE id=?`, id).Scan(&file)
+	if err != nil || !file.Valid || file.String == "" {
+		return ""
+	}
+	return ossPrefix + file.String
+}
+
+func (h *Handler) appUserNum(c *gin.Context, id int) int {
+	key := "app_id_" + strconv.Itoa(id)
+	if h.RDB != nil && h.RDB.App != nil {
+		v, err := h.RDB.App.HGet(c.Request.Context(), "application_user_num", key).Result()
+		if err == nil && v != "" {
+			if n, conv := strconv.Atoi(v); conv == nil {
+				return n
+			}
+		}
+		n := 1000 + rand.Intn(1001)
+		_ = h.RDB.App.HSet(c.Request.Context(), "application_user_num", key, n).Err()
+		return n
+	}
+	return 0
+}
+
+func (h *Handler) idSet(c *gin.Context, query string, platformID int) map[int]bool {
+	rows, err := h.DB.Sources.QueryContext(c.Request.Context(), query, platformID)
+	set := map[int]bool{}
+	if err != nil {
+		return set
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err == nil {
+			set[id] = true
+		}
+	}
+	return set
+}
+
+func (h *Handler) platformBrief(c *gin.Context, id int) map[string]any {
+	var name, unit, download, introduce, summary sql.NullString
+	var chainID int
+	var charge string
+	var createAt, updateAt sql.NullTime
+	err := h.DB.Sources.QueryRowContext(c.Request.Context(),
+		`SELECT id,name,chain_id,issue_charge,charge_unit,download_url,introduce,summary,create_time,update_time FROM coin_platform WHERE id=?`, id).
+		Scan(&id, &name, &chainID, &charge, &unit, &download, &introduce, &summary, &createAt, &updateAt)
+	if err != nil {
+		return nil
+	}
+	item := map[string]any{
+		"id": id, "name": nullString(name), "chain_id": chainID, "issue_charge": charge,
+		"charge_unit": nullString(unit), "download_url": nullString(download),
+		"introduce": nullString(introduce), "summary": nullString(summary),
+	}
+	if createAt.Valid {
+		item["create_time"] = createAt.Time.Format("2006-01-02 15:04:05")
+	}
+	if updateAt.Valid {
+		item["update_time"] = updateAt.Time.Format("2006-01-02 15:04:05")
+	}
+	return item
 }
 
 func scanNamed(rows *sql.Rows, locale string) []map[string]any {
